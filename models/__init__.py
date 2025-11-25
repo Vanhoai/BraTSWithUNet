@@ -1,3 +1,3 @@
-from .u_net import UNet
+from .u_net import UNetBaseline
 
-__all__ = ["UNet"]
+__all__ = ["UNetBaseline"]

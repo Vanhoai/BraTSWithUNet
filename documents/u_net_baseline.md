@@ -215,3 +215,35 @@ for i in range(height):
 print("Total Loss: ", loss.item())  # 0.48539113998413086
 print("Manually Calculated Total Loss: ", total_loss / (height * width))  # 0.48539111018180847
 ```
+
+##### Brief Summary: Loss Calculation Flow
+
+```
+1. Model Output (Logits)
+   ↓
+   [batch, 3, 256, 256] - raw scores
+
+2. Apply Softmax (implicit in CrossEntropyLoss)
+   ↓
+   [batch, 3, 256, 256] - probabilities (sum to 1 per pixel)
+
+3. For each pixel, select probability of true class
+   ↓
+   [batch, 256, 256] - probability of correct class at each pixel
+
+4. Calculate -log(probability)
+   ↓
+   [batch, 256, 256] - loss per pixel
+
+5. Average over all pixels and batches
+   ↓
+   scalar - final loss value
+
+6. Backpropagate
+   ↓
+   Compute gradients for all weights
+
+7. Update weights
+   ↓
+   Model learns to predict better masks
+```
