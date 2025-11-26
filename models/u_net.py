@@ -73,7 +73,7 @@ class Up(nn.Module):
 
 
 class UNetBaseline(nn.Module):
-    def __init__(self, in_channels: int, out_classes: int):
+    def __init__(self, in_channels: int, num_classes: int):
         super(UNetBaseline, self).__init__()
 
         # Encoder
@@ -92,7 +92,7 @@ class UNetBaseline(nn.Module):
         self.up4 = Up(128, 64, bilinear=False)
 
         # Output layer
-        self.outc = nn.Conv2d(64, out_classes, kernel_size=1)
+        self.outc = nn.Conv2d(64, num_classes, kernel_size=1)
 
     def forward(self, x):
         # Encoder with skip connections
