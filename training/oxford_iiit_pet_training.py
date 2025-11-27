@@ -1,16 +1,17 @@
 import os
+
+import albumentations as A
 import numpy as np
 import torch
-from tqdm import tqdm
-import albumentations as A
-from albumentations.pytorch import ToTensorV2  # np.array -> torch.tensor
-from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
+from albumentations.pytorch import ToTensorV2  # np.array -> torch.tensor
+from torch.utils.data import DataLoader
 from torchmetrics.segmentation import GeneralizedDiceScore, MeanIoU
+from tqdm import tqdm
 
-from models import UNetBaseline
 from datasets import OxfordIIIPetDataset
+from models import UNetBaseline
 
 # internal modules
 from .training import TrainingTorchModel
@@ -25,7 +26,6 @@ class OxfordIIITPetTraining(TrainingTorchModel):
         super().__init__()
         self.model_path = saved_directory
         self.device = device
-        self.model = None
 
         best_model_path = os.path.join(self.model_path, "best.pth")
         if not os.path.exists(best_model_path):
@@ -37,7 +37,10 @@ class OxfordIIITPetTraining(TrainingTorchModel):
             raise ValueError("Model is not built or loaded properly.")
 
     def load_model(self):
-        checkpoint = torch.load(os.path.join(self.model_path, "best.pth"), map_location=self.device)
+        checkpoint = torch.load(
+            os.path.join(self.model_path, "best.pth"),
+            map_location=self.device,
+        )
         self.model = self.build_model()
         self.model.load_state_dict(checkpoint["model_state_dict"])
 
@@ -58,19 +61,30 @@ class OxfordIIITPetTraining(TrainingTorchModel):
         EPOCHS = 50
         NUM_WORKERS = 4
 
-        train_transform = A.Compose([
-            A.Resize(width=224, height=224),
-            A.HorizontalFlip(),
-            A.RandomBrightnessContrast(),
-            A.Blur(),
-            A.Sharpen(),
-            A.RGBShift(),
-            ToTensorV2(),
-        ])
+        train_transform = A.Compose(
+            [
+                A.Resize(width=224, height=224),
+                A.HorizontalFlip(),
+                A.RandomBrightnessContrast(),
+                A.Blur(),
+                A.Sharpen(),
+                A.RGBShift(),
+                ToTensorV2(),
+            ]
+        )
 
         root = os.getcwd() + "/data/OxfordIIITPet/oxford-iiit-pet"
-        train_dataset = OxfordIIIPetDataset(root=root, is_train=True, transform=train_transform)
-        val_dataset = OxfordIIIPetDataset(root=root, is_train=False, transform=train_transform)
+        train_dataset = OxfordIIIPetDataset(
+            root=root,
+            is_train=True,
+            transform=train_transform,
+        )
+
+        val_dataset = OxfordIIIPetDataset(
+            root=root,
+            is_train=False,
+            transform=train_transform,
+        )
 
         train_dataloader = DataLoader(
             dataset=train_dataset,
@@ -98,7 +112,6 @@ class OxfordIIITPetTraining(TrainingTorchModel):
 
         # Best validation IoU for saving the best model
         best_predict = -1
-        current_epoch = 0
 
         # Training loop
         for epoch in range(EPOCHS):
@@ -122,7 +135,9 @@ class OxfordIIITPetTraining(TrainingTorchModel):
                 # Backpropagation
                 loss.backward()
                 optimizer.step()
-                train_progress.set_description("TRAIN| Epoch: {}/{}| Loss: {:0.4f}".format(epoch, EPOCHS, loss))
+                train_progress.set_description(
+                    "TRAIN| Epoch: {}/{}| Loss: {:0.4f}".format(epoch, EPOCHS, loss)
+                )
 
             # Validation Phase
             self.model.eval()
@@ -153,20 +168,25 @@ class OxfordIIITPetTraining(TrainingTorchModel):
                     all_ious.append(miou.cpu().item())
                     all_dices.append(dice.cpu().item())
 
-                    if idx == 40: break
+                    if idx == 40:
+                        break
 
             # Compute mean IoU for the epoch
             loss = np.mean(all_losses)
             miou = np.mean(all_ious)
             dice = np.mean(all_dices)
 
-            print("VAL| Loss: {:0.4f} | mIOU: {:0.4f} | Dice: {:0.4f}".format(loss, miou, dice))
+            print(
+                "VAL| Loss: {:0.4f} | mIOU: {:0.4f} | Dice: {:0.4f}".format(
+                    loss, miou, dice
+                )
+            )
 
             checkpoint = {
                 "model_state_dict": self.model.state_dict(),
                 "epoch": epoch,
                 "optimizer_state_dict": optimizer.state_dict(),
-                "miou": miou
+                "miou": miou,
             }
 
             # Save Last Checkpoint

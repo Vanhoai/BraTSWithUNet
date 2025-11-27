@@ -1,9 +1,6 @@
 #### U-NET Baseline
 
-U-Net is a convolutional neural network architecture designed for biomedical image segmentation. It was introduced by
-Olaf Ronneberger, Philipp Fischer, and Thomas Brox in their 2015 paper "U-Net: Convolutional Networks for Biomedical
-Image Segmentation". The architecture is named "U-Net" due to its U-shaped structure, which consists of a contracting
-path (encoder) and an expansive path (decoder).
+U-Net is a convolutional neural network architecture designed for biomedical image segmentation. It was introduced by Olaf Ronneberger, Philipp Fischer, and Thomas Brox in their 2015 paper "U-Net: Convolutional Networks for Biomedical Image Segmentation". The architecture is named "U-Net" due to its U-shaped structure, which consists of a contracting path (encoder) and an expansive path (decoder).
 
 #### Architecture
 
