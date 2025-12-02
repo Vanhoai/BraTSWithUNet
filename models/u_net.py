@@ -77,22 +77,34 @@ class UNetBaseline(nn.Module):
         super(UNetBaseline, self).__init__()
 
         # Encoder
-        self.inc = DualConv(in_channels, 64)
-        self.down1 = Down(64, 128)
-        self.down2 = Down(128, 256)
-        self.down3 = Down(256, 512)
+        # self.inc = DualConv(in_channels, 64)
+        # self.down1 = Down(64, 128)
+        # self.down2 = Down(128, 256)
+        # self.down3 = Down(256, 512)
 
-        # Bottleneck
-        self.down4 = Down(512, 1024)
+        # # Bottleneck
+        # self.down4 = Down(512, 1024)
 
-        # Decoder
-        self.up1 = Up(1024, 512, bilinear=False)
-        self.up2 = Up(512, 256, bilinear=False)
-        self.up3 = Up(256, 128, bilinear=False)
-        self.up4 = Up(128, 64, bilinear=False)
+        # # Decoder
+        # self.up1 = Up(1024, 512, bilinear=False)
+        # self.up2 = Up(512, 256, bilinear=False)
+        # self.up3 = Up(256, 128, bilinear=False)
+        # self.up4 = Up(128, 64, bilinear=False)
 
         # Output layer
-        self.outc = nn.Conv2d(64, num_classes, kernel_size=1)
+        # self.outc = nn.Conv2d(64, num_classes, kernel_size=1)
+
+        # Smaller UNet for faster training
+        self.inc = DualConv(in_channels, 32)
+        self.down1 = Down(32, 64)
+        self.down2 = Down(64, 128)
+        self.down3 = Down(128, 256)
+        self.down4 = Down(256, 512)  # Bottleneck
+        self.up1 = Up(512, 256, bilinear=False)
+        self.up2 = Up(256, 128, bilinear=False)
+        self.up3 = Up(128, 64, bilinear=False)
+        self.up4 = Up(64, 32, bilinear=False)
+        self.outc = nn.Conv2d(32, num_classes, kernel_size=1)
 
     def forward(self, x):
         # Encoder with skip connections

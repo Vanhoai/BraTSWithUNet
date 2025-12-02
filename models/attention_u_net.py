@@ -42,11 +42,6 @@ class DualConv(nn.Module):
 
 
 class EncoderBlock(nn.Module):
-    """
-    Encoder block that performs dual convolution followed by max pooling.
-    Returns both the skip connection output and the downsampled output.
-    """
-
     def __init__(self, in_channels: int, out_channels: int):
         super().__init__()
         self.dual_conv = DualConv(in_channels, out_channels)

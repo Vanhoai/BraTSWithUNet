@@ -6,6 +6,7 @@
   overlap).
 
 Formula:
+
 $$
 \text{Dice Coefficient} = \frac{2 |A \cap B|}{|A| + |B|}
 $$
@@ -20,26 +21,26 @@ Where:
 1. Flatten the predicted and ground truth masks into 1D arrays.
 2. Calculate the intersection (the number of pixels where both masks are 1).
    Formula for Intersection:
-   $$
-   |A \cap B| = \sum_{i=1}^{N} p_i \times g_i
-   $$
+    $$
+    |A \cap B| = \sum_{i=1}^{N} p_i \times g_i
+    $$
 3. Calculate the total number of pixels in each mask.
    Formula for Total Pixels:
-   $$
-   |A| = \sum_{i=1}^{N} p_i
-   $$
-   $$
-   |B| = \sum_{i=1}^{N} g_i
-   $$
+    $$
+    |A| = \sum_{i=1}^{N} p_i
+    $$
+    $$
+    |B| = \sum_{i=1}^{N} g_i
+    $$
 4. Plug these values into the Dice Coefficient formula.
    Formula for Dice Coefficient:
-   $$
-   \text{Dice Coefficient} = \frac{2 \times |A \cap B|}{|A| + |B|}
-   $$
+    $$
+    \text{Dice Coefficient} = \frac{2 \times |A \cap B|}{|A| + |B|}
+    $$
 5. Calculate Dice Loss as:
-   $$
-   \text{Dice Loss} = 1 - \text{Dice Coefficient}
-   $$
+    $$
+    \text{Dice Loss} = 1 - \text{Dice Coefficient}
+    $$
 
 #### Python Implementation:
 

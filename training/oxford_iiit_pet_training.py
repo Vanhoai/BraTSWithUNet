@@ -122,8 +122,7 @@ class OxfordIIITPetTraining(TrainingTorchModel):
             for idx, img_mask in enumerate(train_progress):
                 # B, C, H, W
                 img = img_mask[0].float().to(self.device)  # type: ignore
-                # B, H, W
-                mask = img_mask[1].float().to(self.device)
+                mask = img_mask[1].float().to(self.device)  # B, H, W
 
                 y_pred = self.model(img)  # B, 1, H, W
                 y_pred = y_pred.squeeze()  # B, H, W
