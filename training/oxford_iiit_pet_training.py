@@ -3,67 +3,36 @@ import os
 import albumentations as A
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from albumentations.pytorch import ToTensorV2  # np.array -> torch.tensor
+from albumentations.pytorch import ToTensorV2
+from torch import nn, optim
 from torch.utils.data import DataLoader
-from torchmetrics.segmentation import GeneralizedDiceScore, MeanIoU
 from tqdm import tqdm
 
 from datasets import OxfordIIIPetDataset
-from models import UNetBaseline
+from metrics import SegmentationMetrics
 
-# internal modules
-from .training import TrainingTorchModel
+BATCH_SIZE = 16
+NUM_WORKERS = 8
 
 
-class OxfordIIITPetTraining(TrainingTorchModel):
+class OxfordIIITPetTraining:
     def __init__(
         self,
-        saved_directory: str,
-        device: str,
+        root,
+        device,
+        model: nn.Module,
+        batch_size: int = BATCH_SIZE,
+        num_workers: int = NUM_WORKERS,
     ):
-        super().__init__()
-        self.model_path = saved_directory
         self.device = device
+        self.model_path = os.path.join(root, "checkpoints", "oxford_iiit_pet")
+        if not os.path.exists(self.model_path):
+            os.makedirs(self.model_path)
 
-        best_model_path = os.path.join(self.model_path, "best.pth")
-        if not os.path.exists(best_model_path):
-            self.build_model()
-        else:
-            self.load_model()
-
-        if not self.model:
-            raise ValueError("Model is not built or loaded properly.")
-
-    def load_model(self):
-        checkpoint = torch.load(
-            os.path.join(self.model_path, "best.pth"),
-            map_location=self.device,
-        )
-        self.model = self.build_model()
-        self.model.load_state_dict(checkpoint["model_state_dict"])
-
-    def save_model(self):
-        print("Saving model to: ", self.model_path)
-
-    def build_model(self):
-        self.model = UNetBaseline(in_channels=3, num_classes=1)
-        self.model = self.model.to(self.device)
-        return self.model
-
-    def evaluate(self):
-        print("Evaluating the model")
-
-    def train(self):
-        LEARNING_RATE = 0.0001
-        BATCH_SIZE = 10
-        EPOCHS = 50
-        NUM_WORKERS = 4
-
-        train_transform = A.Compose(
+        self.model = model.to(self.device)
+        transform = A.Compose(
             [
-                A.Resize(width=224, height=224),
+                A.Resize(width=128, height=128),
                 A.HorizontalFlip(),
                 A.RandomBrightnessContrast(),
                 A.Blur(),
@@ -73,20 +42,20 @@ class OxfordIIITPetTraining(TrainingTorchModel):
             ]
         )
 
-        root = os.getcwd() + "/data/OxfordIIITPet/oxford-iiit-pet"
+        root_dataset = root + "/data/OxfordIIITPet/oxford-iiit-pet"
         train_dataset = OxfordIIIPetDataset(
-            root=root,
+            root=root_dataset,
             is_train=True,
-            transform=train_transform,
+            transform=transform,
         )
 
         val_dataset = OxfordIIIPetDataset(
-            root=root,
+            root=root_dataset,
             is_train=False,
-            transform=train_transform,
+            transform=transform,
         )
 
-        train_dataloader = DataLoader(
+        self.train_dataloader = DataLoader(
             dataset=train_dataset,
             batch_size=BATCH_SIZE,
             num_workers=NUM_WORKERS,
@@ -94,7 +63,7 @@ class OxfordIIITPetTraining(TrainingTorchModel):
             drop_last=True,
         )
 
-        val_dataloader = DataLoader(
+        self.val_dataloader = DataLoader(
             dataset=val_dataset,
             batch_size=BATCH_SIZE,
             num_workers=NUM_WORKERS,
@@ -102,84 +71,87 @@ class OxfordIIITPetTraining(TrainingTorchModel):
             drop_last=True,
         )
 
+    def train(
+        self,
+        epochs: int = 50,
+        learning_rate: float = 0.0001,
+    ):
         # Initialize optimizer and loss function
-        optimizer = optim.Adam(self.model.parameters(), lr=LEARNING_RATE)
+        optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
         criterion = nn.BCEWithLogitsLoss()
-
-        # Metrics
-        miou_metric = MeanIoU(num_classes=2)
-        dice_metric = GeneralizedDiceScore(num_classes=2)
+        metrics = SegmentationMetrics()
 
         # Best validation IoU for saving the best model
         best_predict = -1
 
-        # Training loop
-        for epoch in range(EPOCHS):
-            # Training Phase
+        for epoch in range(epochs):
             self.model.train()
-            train_progress = tqdm(train_dataloader, colour="cyan")
+            train_progress = tqdm(self.train_dataloader, colour="green")
 
-            for idx, img_mask in enumerate(train_progress):
-                # B, C, H, W
-                img = img_mask[0].float().to(self.device)  # type: ignore
-                mask = img_mask[1].float().to(self.device)  # B, H, W
+            for batch_idx, (images, masks) in enumerate(train_progress):
+                # Move data to device
+                images = images.float().to(self.device)  # B, 3, H, W
+                masks = masks.float().to(self.device)  # B, H, W
 
-                y_pred = self.model(img)  # B, 1, H, W
-                y_pred = y_pred.squeeze()  # B, H, W
-                optimizer.zero_grad()
+                # Forward pass
+                pred = self.model(images)  # B, 1, H, W
+                pred = pred.squeeze()  # B, H, W
 
                 # Calculate Loss
-                loss = criterion(y_pred, mask)
+                loss = criterion(pred, masks)
 
                 # Backpropagation
+                optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-                train_progress.set_description(
-                    "TRAIN| Epoch: {}/{}| Loss: {:0.4f}".format(epoch, EPOCHS, loss)
-                )
+
+                msg = "TRAIN| Epoch: {}/{}| Loss: {:0.4f}".format(epoch, epochs, loss)
+                train_progress.set_description(msg)
 
             # Validation Phase
             self.model.eval()
-
             all_losses = []
             all_ious = []
             all_dices = []
 
+            val_progress = tqdm(self.val_dataloader, colour="green")
+
             with torch.no_grad():
-                for idx, img_mask in enumerate(val_dataloader):
-                    img = img_mask[0].float().to(self.device)  # type: ignore
-                    mask = img_mask[1].float().to(self.device)  # B W H
+                for batch_idx, (images, masks) in enumerate(val_progress):
+                    images = images.float().to(self.device)  # B, 3, H, W
+                    masks = masks.float().to(self.device)  # B, H, W
 
-                    y_pred = self.model(img)
-                    y_pred = y_pred.squeeze()  # B H W
+                    pred = self.model(images)  # B, 1, H, W
+                    pred = pred.squeeze()  # B, H, W
 
-                    loss = criterion(y_pred, mask)
+                    loss = criterion(pred, masks)
+                    all_losses.append(loss.item())
 
-                    mask = mask.long().cpu()
-                    y_pred[y_pred > 0] = 1  # BWH
-                    y_pred[y_pred < 0] = 0  # BWH
-                    y_pred = y_pred.long().cpu()
+                    masks = masks.long().cpu()
 
-                    miou = miou_metric(y_pred, mask)
-                    dice = dice_metric(y_pred, mask)
+                    # Make predictions binary
+                    pred[pred > 0] = 1  # B, H, W
+                    pred[pred < 0] = 0  # B, H, W
+                    pred = pred.long().cpu()
+
+                    iou = metrics.calculate_iou(pred, masks)
+                    dice = metrics.calculate_dice(pred, masks)
 
                     all_losses.append(loss.cpu().item())
-                    all_ious.append(miou.cpu().item())
+                    all_ious.append(iou.cpu().item())
                     all_dices.append(dice.cpu().item())
-
-                    if idx == 40:
-                        break
 
             # Compute mean IoU for the epoch
             loss = np.mean(all_losses)
             miou = np.mean(all_ious)
             dice = np.mean(all_dices)
 
-            print(
-                "VAL| Loss: {:0.4f} | mIOU: {:0.4f} | Dice: {:0.4f}".format(
-                    loss, miou, dice
-                )
+            msg = "VAL| Loss: {:0.4f} | mIOU: {:0.4f} | Dice: {:0.4f}".format(
+                loss,
+                miou,
+                dice,
             )
+            print(msg)
 
             checkpoint = {
                 "model_state_dict": self.model.state_dict(),
