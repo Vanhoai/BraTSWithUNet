@@ -65,9 +65,7 @@ class OxfordIIIPetBinaryDataset(Dataset):
 
             return image, mask  # type: ignore
 
-        except Exception as e:
-            print(
-                f"Error loading image at index {item} ({self.image_names[item]}): {e}"
-            )
+        except Exception as exception:
+            print("Exception occurred while loading data:", exception)
             next_idx = (item + 1) % len(self.image_names)
             return self.__getitem__(next_idx)

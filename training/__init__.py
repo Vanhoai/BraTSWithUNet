@@ -1,3 +1,3 @@
-from .oxford_iiit_pet_training import OxfordIIITPetTraining
+from .oxford_iiit_pet_training import OxfordIIITPetTraining, OxfordIIITPetMultiClassesTraining
 
-__all__ = ["OxfordIIITPetTraining"]
+__all__ = ["OxfordIIITPetTraining", "OxfordIIITPetMultiClassesTraining"]
