@@ -1,10 +1,9 @@
 import os
 import warnings
-from typing import List, Tuple
+from typing import List
 
 import cv2
 import numpy as np
-import torch
 from PIL import Image, ImageFile
 from torch.utils.data import Dataset
 
@@ -21,7 +20,7 @@ class OxfordIIIPetDataset(Dataset):
     ):
         self.root = root
         self.transform = transform
-        self.classes = ["background", "animal"]
+        self.classes = ["background", "animal", "border"]
         self.image_names: List[str] = []
 
         if is_train:
@@ -33,38 +32,43 @@ class OxfordIIIPetDataset(Dataset):
         with open(annotations, "r") as f:
             self.image_names = [image.split(" ")[0] for image in f.readlines()]
 
-    def __len__(self):
+        if not self.image_names:
+            raise ValueError(f"No images found in the dataset at {annotations}")
+
+    def __len__(self) -> int:
         return len(self.image_names)
 
-    def __getitem__(self, item) -> Tuple[torch.Tensor, torch.Tensor]:
+    def __getitem__(self, idx: int):
         try:
-            image_name = self.image_names[item]
+            image_name = self.image_names[idx]
             image_path = os.path.join(self.root, "images", image_name + ".jpg")
             mask_path = os.path.join(
-                self.root, "annotations", "trimaps", image_name + ".png"
+                self.root,
+                "annotations",
+                "trimaps",
+                image_name + ".png",
             )
 
             image_pil = Image.open(image_path).convert("RGB")
-            image = np.array(image_pil)  # Convert to numpy array (RGB format)
+
+            # Convert to numpy array (RGB format)
+            image = np.array(image_pil)
 
             mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-
             if mask is None:
                 raise ValueError(f"Cannot load mask: {mask_path}")
 
-            mask[mask == 2] = 0  # type: ignore
-            mask[mask == 3] = 1  # type: ignore
+            # Convert mask values from {1,2,3} to {0,1,2}
+            mask = mask - 1
 
             if self.transform:
-                transformed = self.transform(image=image, mask=mask)
-                image = transformed["image"]
-                mask = transformed["mask"]
+                augmented = self.transform(image=image, mask=mask)
+                image = augmented["image"]
+                mask = augmented["mask"]
 
-            return image, mask  # type: ignore
+            return image, mask
 
-        except Exception as e:
-            print(
-                f"Error loading image at index {item} ({self.image_names[item]}): {e}"
-            )
-            next_idx = (item + 1) % len(self.image_names)
+        except Exception as exception:
+            print(f"Loading exception at index {idx}: {exception}")
+            next_idx = (idx + 1) % len(self.image_names)
             return self.__getitem__(next_idx)
