@@ -358,7 +358,7 @@ class OxfordIIITPetMultiClassesTraining:
             num_batches += 1
 
             msg = (
-                f"Training | Loss: {epoch_loss / num_batches:.4f} | "
+                f"Training   | Loss: {epoch_loss / num_batches:.4f} | "
                 f"Dice: {epoch_dice / num_batches:.4f} | "
                 f"IoU: {epoch_iou / num_batches:.4f}"
             )

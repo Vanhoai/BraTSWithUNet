@@ -142,26 +142,33 @@ class DecoderBlock(nn.Module):
 
 
 class AttentionUNet(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int):
+    def __init__(
+        self,
+        in_channels: int,
+        num_classes: int,
+        filters=None,
+    ):
         super(AttentionUNet, self).__init__()
+        if filters is None:
+            filters = [32, 64, 128, 256, 512]
 
         # Encoder
-        self.enc1 = EncoderBlock(in_channels, 64)
-        self.enc2 = EncoderBlock(64, 128)
-        self.enc3 = EncoderBlock(128, 256)
-        self.enc4 = EncoderBlock(256, 512)
+        self.enc1 = EncoderBlock(in_channels, filters[0])
+        self.enc2 = EncoderBlock(filters[0], filters[1])
+        self.enc3 = EncoderBlock(filters[1], filters[2])
+        self.enc4 = EncoderBlock(filters[2], filters[3])
 
         # Bottleneck
-        self.bottleneck = DualConv(512, 1024)
+        self.bottleneck = DualConv(filters[3], filters[4])
 
         # Decoder
-        self.dec4 = DecoderBlock(1024, 512, 512)
-        self.dec3 = DecoderBlock(512, 256, 256)
-        self.dec2 = DecoderBlock(256, 128, 128)
-        self.dec1 = DecoderBlock(128, 64, 64)
+        self.dec4 = DecoderBlock(filters[4], filters[3], filters[3])
+        self.dec3 = DecoderBlock(filters[3], filters[2], filters[2])
+        self.dec2 = DecoderBlock(filters[2], filters[1], filters[1])
+        self.dec1 = DecoderBlock(filters[1], filters[0], filters[0])
 
         # Output layer
-        self.out_conv = nn.Conv2d(64, out_channels, kernel_size=1)
+        self.out_conv = nn.Conv2d(filters[0], num_classes, kernel_size=1)
 
     def forward(self, x: torch.Tensor):
         # Encoder

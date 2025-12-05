@@ -1,8 +1,12 @@
 import os
-import torch
 
-from models import UNetBaseline
-from training import OxfordIIITPetTraining, OxfordIIITPetMultiClassesTraining
+import torch
+import torch.nn.functional as F
+
+from losses import CombinedLoss
+from metrics import SegmentationMetrics
+from models import AttentionUNet, ResUNet, TransUNet, UNetBaseline, UNetPlusPlus
+from training import OxfordIIITPetMultiClassesTraining
 
 root_directory = os.getcwd()
 device = "mps" if torch.mps.is_available() else "cpu"
@@ -63,5 +67,62 @@ def train_binary_oxford_iiit_pet():
     trainer.train(epochs=epochs, learning_rate=learning_rate)
 
 
+def run_res_unet():
+    NUM_CLASSES = 2
+    EPSILON = 1e-7
+    THRESHOLD = 0.5
+    BATCH_SIZE = 8
+    HEIGHT, WIDTH = 128, 128
+    CHANNELS = 3
+    DEVICE = torch.device("mps" if torch.mps.is_available() else "cpu")
+
+    torch.manual_seed(0)
+
+    # Metrics
+    metrics = SegmentationMetrics(threshold=THRESHOLD, epsilon=EPSILON)
+
+    # Loss function
+    # criterion = nn.BCEWithLogitsLoss()
+    criterion = CombinedLoss(bce_weight=0.5, dice_weight=0.5)
+
+    # num_classes = 1 for binary segmentation with BCEWithLogitsLoss
+    # model = ResUNet(in_channels=CHANNELS, num_classes=1).to(DEVICE)
+    # model = AttentionUNet(in_channels=CHANNELS, num_classes=1).to(DEVICE)
+    model = UNetPlusPlus(in_channels=CHANNELS, num_classes=1).to(DEVICE)
+
+    # 1. Init images and sample masks
+
+    # Shape: [batch_size, channels, height, width] : [8, 3, 128, 128]
+    images = torch.randn(BATCH_SIZE, CHANNELS, HEIGHT, WIDTH).to(DEVICE)
+    # Shape: [batch_size, height, width] : [8, 128, 128]
+    masks = torch.randint(0, 2, (BATCH_SIZE, HEIGHT, WIDTH)).long().to(DEVICE)  # {0, 1}
+
+    assert images.shape == (BATCH_SIZE, CHANNELS, HEIGHT, WIDTH)
+    assert masks.shape == (BATCH_SIZE, HEIGHT, WIDTH)
+
+    # 2. Forward pass
+
+    # Shape: [batch_size, 1, height, width] : [8, 1, 128, 128]
+    pred = model(images)
+    assert pred.shape == (BATCH_SIZE, 1, HEIGHT, WIDTH)
+
+    # 3. Compute loss
+    # For binary segmentation, use BCEWithLogitsLoss
+    pred = pred.squeeze(1)  # Shape: [batch_size, height, width]
+    loss = criterion(pred, masks.float())  # Should be a float value
+
+    # BCEWithLogitsLoss: 0.7238839864730835
+    # CombinedLoss: 0.5920742750167847
+
+    # 4. Compute metrics
+    pred_probs = F.sigmoid(pred)  # Convert logits to probabilities
+    iou = metrics.compute_iou(pred_probs, masks)
+    dice = metrics.compute_dice_score(pred_probs, masks)
+
+    print("Loss:", loss.item())
+    print("IoU:", iou)
+    print("Dice:", dice)
+
+
 if __name__ == "__main__":
-    train_binary_oxford_iiit_pet()
+    run_res_unet()
